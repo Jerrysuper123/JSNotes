@@ -28,7 +28,17 @@ const row = {
 // question: what is the use {}, why do we need it?
 < ReactComponent id={1} name="file" size="10MB" />.
 ```
+The above case is just weird because it means `id={1} name="file" size="10MB"` would be wrapped as an props object to be injected into the React component `{
+  id: 1,
+  name: 'file',
+  size: '10MB'
+};`
 
+## what is the use of `{...row}`?
+{...row} dynamically passes all the properties of the row object as individual props to ReactComponent.
+It simplifies passing multiple props, especially when they come from an object, and reduces redundancy.
+So ... means to spread the object into individual key value?
+Then {} means to wrap the key value into an object?
 
 ## destructuring an object
 Destructing object is not new in JS.
