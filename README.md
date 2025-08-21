@@ -2,6 +2,68 @@
 
 JS and React are just weird sometimes, and it is hard to remember some of its underlying concepts. So this article records those for better memory reinforcement.
 
+# how to capture error at different level
+You’ll only ever see err.name === "AbortError" if you actually use an AbortController with fetch.
+
+That’s because:
+
+Normal HTTP errors (4xx, 5xx) → fetch does not throw. You must check response.ok.
+
+Network/firewall errors (DNS fail, connection refused, CORS issue, etc.) → fetch rejects with a TypeError, not AbortError.
+
+Timeouts / cancellations (when you call controller.abort()) → fetch rejects with an error where err.name === "AbortError".
+
+```
+async function loadData(timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch("/api/data", { signal: controller.signal });
+
+    if (!response.ok) {
+      let errorBody: any = {};
+      try {
+        errorBody = await response.json();
+      } catch {
+        errorBody = { message: response.statusText };
+      }
+
+      throw {
+        type: "HttpError",
+        status: response.status,
+        code: errorBody.code || "UNKNOWN_ERROR",
+        message: errorBody.message || "Request failed",
+      };
+    }
+
+    return await response.json();
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      // Timeout or manually aborted
+      throw {
+        type: "TimeoutError",
+        message: `Request timed out after ${timeoutMs}ms`,
+      };
+    }
+
+    // Network / firewall error (fetch couldn’t connect at all)
+    if (err instanceof TypeError) {
+      throw {
+        type: "NetworkError",
+        message: "Network error or firewall blocked request",
+      };
+    }
+
+    // Re-throw unknown error
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+```
+
 # How props are used in React?
 
 We often create a React component below
