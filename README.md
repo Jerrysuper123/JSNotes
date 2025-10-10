@@ -1,5 +1,127 @@
 # JSNotes
 
+Good question — this is a common issue when an async function (triggered by a button click) doesn’t seem to run again after being clicked once.
+
+Let’s break it down.
+
+---
+
+### ⚙️ What’s likely happening
+
+When you click the button:
+
+1. The `onClick` handler calls an **async function**.
+2. That function itself calls **other async functions** using `await`.
+3. During this time, **the first function is still pending** — it hasn’t finished.
+4. If your code doesn’t allow re-entry (e.g., the button is disabled, or the same function instance is still pending), clicking again **won’t trigger another call** until the first one finishes.
+
+---
+
+### 🧠 Common causes
+
+Here are the typical reasons why “click again = no reaction” happens:
+
+#### 1. **The async function never resolves**
+
+If one of your nested `await` calls hangs or throws an unhandled exception, the parent async function never completes — so React (or your JS runtime) never reaches the end of the click handler.
+
+```js
+async function handleClick() {
+  console.log("Start");
+  await doSomething(); // <- if this never resolves or throws, code stops here
+  console.log("Done");
+}
+```
+
+If `doSomething()` hangs, future clicks might appear unresponsive.
+
+---
+
+#### 2. **You disable the button during processing**
+
+Often, code does this to prevent duplicate clicks:
+
+```jsx
+const [loading, setLoading] = useState(false);
+
+async function handleClick() {
+  setLoading(true);
+  await doSomething(); // contains nested awaits
+  setLoading(false);
+}
+
+return <button disabled={loading} onClick={handleClick}>Run</button>;
+```
+
+If an error occurs before `setLoading(false)` is reached (for example, an exception inside the nested function), the button **stays disabled** forever — no more clicks will work.
+
+✅ **Fix:**
+Wrap the call in `try...catch...finally`:
+
+```js
+async function handleClick() {
+  try {
+    setLoading(true);
+    await doSomething();
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+}
+```
+
+---
+
+#### 3. **The function reference is “locked”**
+
+If your `onClick` calls an async function directly defined inside a component without re-rendering properly, you might be referencing a stale closure or previous state — so clicking again does nothing.
+
+Example:
+
+```jsx
+<button onClick={async () => await handleClick(someState)}>Run</button>
+```
+
+If `someState` changes but the handler isn’t updated or re-rendered properly, it may not behave as expected.
+
+---
+
+#### 4. **Uncaught error stops execution**
+
+If any of the nested awaits throws an error and you didn’t catch it, the rest of your code won’t run — and in React, this can cause state inconsistencies.
+
+---
+
+### ✅ How to debug
+
+1. **Add logs** at the start and end of your handler:
+
+   ```js
+   async function handleClick() {
+     console.log("Click start");
+     await doSomething();
+     console.log("Click end");
+   }
+   ```
+2. **Wrap everything in try/catch**:
+
+   ```js
+   async function handleClick() {
+     console.log("Click start");
+     try {
+       await doSomething();
+     } catch (err) {
+       console.error("Error:", err);
+     }
+     console.log("Click end");
+   }
+   ```
+3. **Check whether the button is disabled** in the UI state.
+
+
+
+
 Got it 👍 — so now you’ve got **two layers of try/catch**:
 
 1. **Outer layer** → catches network errors from `fetch`.
